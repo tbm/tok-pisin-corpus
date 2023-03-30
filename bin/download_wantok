@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: © 2023 Martin Michlmayr <tbm@cyrius.com>
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+Download articles from Wantok Niuspepa.
+"""
+
+from pathlib import Path
+
+from bs4 import BeautifulSoup
+import requests
+
+
+BASE_URL = "http://wantokniuspepa.com"
+PAGE_URL = BASE_URL + "/index.php/wantok/nius?start="
+OUT_PATH = Path("corpus/wantok")
+
+
+def get_pages(url):
+    """
+    Extract a list of articles from the feed
+    """
+    response = requests.get(url, timeout=60)
+    if response.status_code != 200:
+        print(f"Couldn't download {url}:", response.status_code)
+        return
+    soup = BeautifulSoup(response.content, "html.parser")
+    for item in soup.find_all("div", {"class": "item"}):
+        link = item.find("a", {"class": "btn"})
+        if link:
+            yield Path(link["href"]).stem, BASE_URL + link["href"]
+
+
+def save_page(filepath, url):
+    """
+    Save one news article from a URL to a file
+    """
+    print(f"Saving {url} as {filepath}")
+    if filepath.exists():
+        print(f"{filepath.stem} exists already; skipping")
+        return
+    response = requests.get(url, timeout=60)
+    if response.status_code != 200:
+        print(f"Couldn't download {url}:", response.status_code)
+        return
+    soup = BeautifulSoup(response.content, "html.parser")
+    text = soup.find("div", {"itemprop": "articleBody"})
+    if not text:
+        print("Error: no text")
+        return
+    with filepath.open("w", encoding="utf-8") as out_file:
+        out_file.write("---\n")
+        title = soup.find("h2", {"itemprop": "headline"})
+        out_file.write("Title " + title.text.strip() + "\n")
+        date = soup.find("time", {"itemprop": "datePublished"})
+        out_file.write("Date: " + date["datetime"] + "\n")
+        out_file.write("---\n")
+        out_file.write(text.text)
+
+
+def main():
+    """
+    Get articles from news feed and save them.
+    """
+    OUT_PATH.mkdir(parents=True, exist_ok=True)
+    for counter in range(0, 1000, 8):
+        url = PAGE_URL + str(counter)
+        print(url)
+        for filename, link in get_pages(url):
+            filepath = OUT_PATH / filename
+            save_page(filepath, link)
+
+
+if __name__ == "__main__":
+    main()
