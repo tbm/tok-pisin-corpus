@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: © 2023 Martin Michlmayr <tbm@cyrius.com>
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+Download articles from ABC's Tok Pisin news site.
+"""
+
+
+from pathlib import Path
+
+from bs4 import BeautifulSoup
+import requests
+
+
+BASE_URL = "https://www.abc.net.au"
+FEED_URL = BASE_URL + "/news/tok-pisin/"
+OUT_PATH = Path("corpus/abc-news")
+
+
+def get_pages(url):
+    """
+    Extract a list of articles from the feed
+    """
+    response = requests.get(url, timeout=60)
+    if response.status_code != 200:
+        print(f"Couldn't download {url}:", response.status_code)
+        return
+    soup = BeautifulSoup(response.content, "html.parser")
+    for item in soup.find_all("h3", {"data-component": "CardHeading"}):
+        href = item.find("a")["href"]
+        yield Path(Path(href).parts[4] + "-" + Path(href).parts[3]), BASE_URL + href
+
+
+def save_page(filepath, url):
+    """
+    Save one news article from a URL to a file
+    """
+    print(f"Saving {url} as {filepath}")
+    if filepath.exists():
+        print(f"{filepath.stem} exists already; skipping")
+        return
+    response = requests.get(url, timeout=60)
+    if response.status_code != 200:
+        print(f"Couldn't download {url}:", response.status_code)
+        return
+    with filepath.open("w", encoding="utf-8") as out_file:
+        soup = BeautifulSoup(response.content, "html.parser")
+        title = soup.find("h1").text
+        if not title:
+            title = soup.find("p", {"data-component": "Text"}).text
+        out_file.write("---\n")
+        out_file.write("Title: " + title + "\n")
+        author = soup.find("span", {"data-component": "Byline"})
+        if author:
+            out_file.write("Author: " + author.text + "\n")
+        date = soup.find("time", {"data-component": "Timestamp"})
+        out_file.write("Date: " + date["datetime"] + "\n")
+        out_file.write("---\n")
+        out_file.write("\n")
+        text = soup.find("div", {"data-component": "LayoutContainer"})
+        if not text:
+            print("Error: no text")
+        text = text.text
+        end = text.find("Harim moa long program")
+        if end != -1:
+            text = text[:end].rstrip()
+        end = text.find("Space to play or pause, M to mute")
+        if end != -1:
+            text = text[:end].rstrip()
+        out_file.write(text)
+
+
+def main():
+    """
+    Get articles from news feed and save them.
+    """
+    OUT_PATH.mkdir(parents=True, exist_ok=True)
+    for filename, link in get_pages(FEED_URL):
+        filepath = OUT_PATH / filename
+        save_page(filepath, link)
+
+
+if __name__ == "__main__":
+    main()
