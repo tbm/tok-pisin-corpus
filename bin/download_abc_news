@@ -58,6 +58,7 @@ def save_page(filepath, url):
             out_file.write("Author: " + author.text + "\n")
         date = soup.find("time", {"data-component": "Timestamp"})
         out_file.write("Date: " + date["datetime"] + "\n")
+        out_file.write("URL: " + url + "\n")
         out_file.write("---\n")
         out_file.write("\n")
         text = soup.find("div", {"data-component": "LayoutContainer"})

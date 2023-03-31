@@ -57,6 +57,7 @@ def save_page(filepath, url):
         out_file.write("Title " + title.text.strip() + "\n")
         date = soup.find("time", {"itemprop": "datePublished"})
         out_file.write("Date: " + date["datetime"] + "\n")
+        out_file.write("URL: " + url + "\n")
         out_file.write("---\n")
         out_file.write(text.text)
 
